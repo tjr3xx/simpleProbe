@@ -63,7 +63,12 @@ def domainToIP(inDomain):
         ipList.append(dnsResponse[DNSRR][i].rdata)
     return ipList
 
-def scanHost(inDstIP):
+def scanHost(inTarget):
+    domainList = []
+    if len(inTarget) > 1:
+        inDstIP, inDomain = inTarget
+    else:
+        inDstIP = inTarget
 
     pingRequest = IP(dst=inDstIP)/ICMP()
     packetResponse = sendPacket(pingRequest)
@@ -87,10 +92,12 @@ def scanHost(inDstIP):
         else:
             hops = 64 - target_ttl
             remoteOS = "*nix"
+
         if args.resolve_ip:
-            domainList = ipToDomain(inDstIP)
-        else:
-            domainList = []
+            domainList += ipToDomain(inDstIP)
+        if inDomain not in domainList:
+            domainList.append(inDomain)
+
         return [inDstIP,remoteOS,hops,domainList]
     return []
 
@@ -116,15 +123,15 @@ if __name__ == "__main__":
     ipScanList = []
     for host in args.host:
         if any(letter.isalpha() for letter in host):
-            ipScanList += domainToIP(host)
+            ipScanList += [[ip,host] for ip in domainToIP(host)]
         elif host.find("/") > -1:
             try:
-               ipScanList += cidrToIPList(host)
+               ipScanList += [[ip,] for ip in cidrToIPList(host)]
             except:
                print("[!] Error invalid subnet: " + host)
                exit()
         else:
-            ipScanList.append(host)
+            ipScanList.append([host,])
 
     # Create threads to distribute work
     que = queue.Queue()
