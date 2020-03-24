@@ -1,8 +1,18 @@
+######################################################################
+######################################################################
+############  SimpleProbe - detect OS by ttl value        ############
+############    tjr3xx - Ferris State University - 2020   ############
+######################################################################
+######################################################################
+
+
 import ipaddress, threading, queue, time, argparse, random
 from scapy.all import *
 
+#####################################################################
+########## Command line interface ###################################
+#####################################################################
 
-#command line interface
 parser = argparse.ArgumentParser()
 parser.add_argument("-T","--threads",dest="thread_count", metavar="<threads>", type=int, default=50, help="number of threads to use (default: 50 threads)")
 parser.add_argument("-d","--delay", dest="packet_delay", metavar="<seconds>", type=int, default=0, help="seconds to wait before sending the next packet (default: 0 seconds)")
@@ -13,6 +23,11 @@ parser.add_argument("host", metavar="<host|cidr|domain>", nargs="+", help="targe
 
 args = parser.parse_args()
 
+
+#####################################################################
+############ Helper Functions #######################################
+#####################################################################
+
 #https://stackoverflow.com/questions/2130016/splitting-a-list-into-n-parts-of-approximately-equal-length
 def splitList(a, n):
     k, m = divmod(len(a), n)
@@ -21,6 +36,10 @@ def splitList(a, n):
 def cidrToIPList(inCidr):
     return [str(ip) for ip in ipaddress.IPv4Network(inCidr) if (str(ip).split(".")[-1]!="0") and (str(ip).split(".")[-1]!="255")]
 
+
+#####################################################################
+########### Scapy Functions #########################################
+#####################################################################
 
 def sendPacket(inPacket):
     return sr1(inPacket, verbose=0, timeout=args.connection_timeout)
@@ -76,8 +95,9 @@ def scanHost(inDstIP):
     return []
 
 
-
-
+############################################################
+############## Multithreading Support ######################
+############################################################
 
 def threadWorker(que,inIPList):
     for dstIP in inIPList:
@@ -86,7 +106,13 @@ def threadWorker(que,inIPList):
             que.put(results)
         time.sleep(args.packet_delay)
 
+
+###########################################################
+############### MAIN ######################################
+###########################################################
+
 if __name__ == "__main__":
+    # Parse user args for target ips
     ipScanList = []
     for host in args.host:
         if any(letter.isalpha() for letter in host):
@@ -100,6 +126,7 @@ if __name__ == "__main__":
         else:
             ipScanList.append(host)
 
+    # Create threads to distribute work
     que = queue.Queue()
     threads = []
     for ipListSlice in splitList(ipScanList, args.thread_count):
@@ -108,9 +135,11 @@ if __name__ == "__main__":
             threads.append(t)
             t.start()
 
+    # Wait for threads to finish
     for t in threads:
         t.join()
 
+    # Pretty print results
     breakLength = 99
     print("\n" + "-" * breakLength)
     print("| {0:15} | {1:12} | {2:4} | {3:55} |".format("IP","OS","HOPS","DOMAINS"))
